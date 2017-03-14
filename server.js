@@ -12,19 +12,9 @@ app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x
 // { name: , joinDate: , organizations: [], memberships: []}
 const USERS = {};
 const ORGANIZATIONS = {};
+var totalUsers;
 
-const ORGANIZATIONS_LIST = [];
-const organizationListDupe = {};
-const USERS_LIST = [];
-const userListDupe = {};
-
-function addOrganization(orgName){
-	if(!organizationListDupe[orgName]){
-		organizationListDupe[orgName] = true;
-		ORGANIZATIONS_LIST.push(orgName);
-	}
-}
-
+// helper fns
 
 function addOrgToUser(user,org,joinDate,status) {
 	if(USERS[user] === undefined){
@@ -33,23 +23,14 @@ function addOrgToUser(user,org,joinDate,status) {
 	USERS[user].organizations[org] = {joinDate, status};
 }
 
-// members: { name: { joinDate: , status}}
-
 function addOrgWithDateAndMembers(org,date,membersArray){
 	if(ORGANIZATIONS[org] === undefined) {
 		ORGANIZATIONS[org] = { date, members: {} };
-	}
-
-	if(organizationListDupe[org] === undefined) {
-		ORGANIZATIONS_LIST.push(org);
-		organizationListDupe[org] = true;
 	}
 	membersArray.forEach(member => {
 		ORGANIZATIONS[org].members[member.name] = { joinDate: member.joinDate, status: member.status };
 	});
 }
-
-var totalUsers;
 
 const BASE_URL = 'https://community.dualthegame.com';
 
@@ -107,8 +88,6 @@ function getPartialOrgList(res,data) {
 		var orgs = resp.data.data.map(org => {
 			var name = org.name.slice(10,org.name.lastIndexOf('"'));
 			name = name.slice(name.indexOf('/')+1);
-			//console.log('Org:',name);
-			addOrganization(name);
 			return name;
 		});
 		return orgs;
@@ -117,11 +96,9 @@ function getPartialOrgList(res,data) {
 
 function getUsersFromOrgName(name){
 	name = urlizeName(name);
-	console.log(name);
 	var URL = BASE_URL + '/organization/' + name;
 	return axios.get(URL, { timeout: 90000 }).then(resp => {
 		let $ = cheerio.load(resp.data);
-		//console.log(resp.data);
 
 		var joinDates = $('#all_members').find('td:contains("-")').map( (i,el) => {
 			return $(el).text();
@@ -130,13 +107,10 @@ function getUsersFromOrgName(name){
 		var statuses = $('#all_members').find('tr > td + td').map( (i,el) => {
 			return $(el).text();
 		}).get().map(x=>x.trim()).filter( val => val.includes('Member') || val.includes('Legate'));
-
-		//console.log(statuses);
 		var usersArray = $('#all_members td > a').map( (index,el) => {
 				var href = el.attribs.href;
 				var username = href.slice(href.lastIndexOf('/')+1);
 				addOrgToUser(username,name,joinDates[index],statuses[index]);
-				//console.log(username,name,joinDates[index]);
 				return { name: username, organization: name, joinDate: joinDates[index], status: statuses[index] };
 		}).get();
 
@@ -155,11 +129,8 @@ function getUserInfo(name){
 	return axios.get('https://community.dualthegame.com/accounts/profile/' + name).then(resp => {
 		let $ = cheerio.load(resp.data);
 		//let user = { name: name, pledgeStatus: null };
-		//console.log($('#recaptcha-token'));
-		//console.log(resp.data);
 		// get pledgeStatus
 		var pledgeStatus = null;
-		//console.log(resp.data);
 		if($('div.pledge_badge_anchor').length > 0) {
 			var src = $('div.pledge_badge_anchor > img.pledge_badge').get(0).attribs.src;
 			src = src.slice(src.lastIndexOf('/')+1,src.lastIndexOf('.'));
@@ -175,11 +146,9 @@ function getUserInfo(name){
 			return $(el).text();
 		}).get();
 
-		//console.log(clans);
 		var fullClanNames = $('div.col-md-8 ul > li').map( (i,el) => {
 			return $(el).text();
 		}).get();
-
 
 		var memberships = fullClanNames.map( clanName => {
 
@@ -189,13 +158,19 @@ function getUserInfo(name){
 				return 'member';
 			}
 		});
-		//var result = { name, joinDate, pledgeStatus, memberships,clanArray };
-		//console.log(memberships);
 
-		return { name, joinDate, pledgeStatus, memberships, clans }; //, memberships, clanArray };
-		//return Object.assign(user, { clans,memberships,joinDate } );
+		return { name, joinDate, pledgeStatus, memberships, clans };
 	});
 }
+
+// ======================================
+// Begin ExpressJS Server / Endpoints
+// ======================================
+
+// use '/scrape' to scrape all orgs/users and fill database
+// takes about 90s -- once completed, /stats will show summary
+
+// /orgs & /users work only after /scrape
 
 app.get('/', (req,res) => {
 	if(axios.defaults.headers.common['Cookie'] && axios.defaults.headers.common['Cookie'].includes && axios.defaults.headers.common['Cookie'].includes('authsessid')){
@@ -205,7 +180,6 @@ app.get('/', (req,res) => {
 	}
 });
 
-	// testing purposes
 app.get('/stats', (req,res) => {
 	var stats = '';
 	stats += 'Number of users: ' + Object.keys(USERS).length;
