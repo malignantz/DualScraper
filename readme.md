@@ -20,3 +20,6 @@
 
 
 #### Please star/watch repo if you like Dual Scraper!
+
+![BTC_QR_CODE](http://i.imgur.com/wWTknRB.png)
+1DJK3yVNNpqCyA5vssUwWKp4HEEWarY2m5
