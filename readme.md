@@ -17,3 +17,6 @@
 
 ## Creating JSON file from data
 `node server.js | tee -a data.json` will copy stdout data to `data.json`
+
+
+#### Please star/watch repo if you like Dual Scraper!
