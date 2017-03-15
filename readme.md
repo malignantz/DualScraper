@@ -4,7 +4,7 @@
 
 1. `npm start`
 1. Go to / to set authssid (token available from cookies of logged in browser)
-1. Go to localhost:3000/scrape to scrape all organizations and users. _Note: this may take up to 3 minutes. Errors will show in console.JSON data will be shown when scraping complete._
+1. Submit token and wait for scraping to finish. _Note: this may take up to 3 minutes. Browser will hang. JSON data will be displayed when scraping is complete_
 1. /orgs & /users contain the json data and output it to stdout & request response
 
 ## Getting authssid Token from Google Chrome

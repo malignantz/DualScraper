@@ -8,8 +8,7 @@ var cheerio = require('cheerio');
 let app = express();
 app.use(bodyParser.json()); // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
-// objects with info
-// { name: , joinDate: , organizations: [], memberships: []}
+
 const USERS = {};
 const ORGANIZATIONS = {};
 var totalUsers;
@@ -33,16 +32,11 @@ function addOrgWithDateAndMembers(org,date,membersArray){
 	});
 }
 
-function addCreateDateMembershipsAndPledgeStatus(username,createdDate, memberships, pledgeStatus) {
-	//console.log(args);
-
-
+function addCreateDateMembershipsAndPledgeStatus(username,createdDate, pledgeStatus) {
 	if(USERS[username]===undefined){
 		USERS[username] = {};
-		console.log('User should already exist.',USERS);
 	}
 		USERS[username].createdDate = createdDate;
-		//USERS[username].memberships = memberships;
 		USERS[username].pledgeStatus = pledgeStatus;
 }
 
@@ -137,7 +131,7 @@ function getUsersFromOrgName(name){
 		var usersArray = $('#all_members td > a').map( (index,el) => {
 				var href = el.attribs.href;
 				var username = href.slice(href.lastIndexOf('/')+1);
-				uniqueUsers[username] = true;
+				if(username !== undefined && username.length && username.length > 0) uniqueUsers[username] = true;
 				addOrgToUser(username,name,joinDates[index],statuses[index]);
 				return { name: username, organization: name, joinDate: joinDates[index], status: statuses[index] };
 		}).get();
@@ -154,12 +148,13 @@ function getUsersFromOrgName(name){
 }
 
 function getUserInfo(name){
-	//console.log('Name: ',name);
-	//console.log('157|Name: ',name);
+	if(name === undefined){
+		console.log('getUserInfo fail. name undefined');
+		return;
+	}
 	return axios.get('https://community.dualthegame.com/accounts/profile/' + name).then(resp => {
 		let $ = cheerio.load(resp.data);
-		//console.log(resp.data);
-		//let user = { name: name, pledgeStatus: null };
+
 		// get pledgeStatus
 		let pledgeStatus = 'none';
 		if($('div.pledge_badge_anchor').length > 0) {
@@ -171,27 +166,10 @@ function getUserInfo(name){
 		// get join date
 		let joinDate = $(`small:contains('Joined:')`).text().slice('Joined:'.length);
 
-		// get clans and membership
-		let clans = $('div.col-md-8 ul > li > a').map((i,el) => {
-			return $(el).text();
-		}).get();
+		addCreateDateMembershipsAndPledgeStatus(name, joinDate, pledgeStatus);
 
-		let fullClanNames = $('div.col-md-8 ul > li').map( (i,el) => {
-			return $(el).text();
-		}).get();
-
-		let memberships = fullClanNames.map( clanName => {
-
-			if(clanName.includes('(')){
-				return clanName.slice(clanName.indexOf('(')+1,clanName.indexOf(')'));
-			} else {
-				return 'member';
-			}
-		});
-		addCreateDateMembershipsAndPledgeStatus(name, joinDate, memberships, pledgeStatus);
-
-		return { name, joinDate, pledgeStatus, memberships, clans };
-	}).catch(err => console.log('There was an error.'));
+		return { name, joinDate, pledgeStatus };
+	}).catch(err => console.log('Problem getting user info.'));
 }
 
 // ======================================
@@ -208,7 +186,7 @@ app.get('/', (req,res) => {
 	if(axios.defaults.headers.common['Cookie'] && axios.defaults.headers.common['Cookie'].includes && axios.defaults.headers.common['Cookie'].includes('authsessid')){
 		res.end('cookie already set.');
 	} else {
-		res.end('<html>Set Cookie for script to work: <form action="/sessid" method="post"><input type="text" name="sessid" placeholder="Sessid cookie"/><button type="submit">Submit</button></form></html>');
+		res.end('<html>Input authssid token. Browser will hang while scraping. <form action="/sessid" method="post"><input type="text" name="sessid" placeholder="Sessid cookie"/><button type="submit">Submit</button></form></html>');
 	}
 });
 
@@ -220,62 +198,49 @@ app.get('/stats', (req,res) => {
 });
 
 app.get('/scrape', (req,res) => {
-	setupHeaders(res).then(x => {
-		buildOrgList(res).then(orgs => {
-				//console.log(orgs);
-				orgs = flatMap(orgs);
+	if(sessid===undefined){
+		res.redirect('/');
+	} else {
+		console.log('Getting CSRF token...');
+		setupHeaders().then(x => {
+			console.log('Complete!\nBuilding list of organizations...');
+			buildOrgList(res).then(orgs => {
+					console.log('Complete!\nBuilding master user list...')
+					orgs = flatMap(orgs);
 
-				Promise.all(orgs.map(getUsersFromOrgName)).then( usersArray => {
-					console.log('Finished getting users. Starting arduous user search...');
-					usersArray = flatMap(usersArray);
-					//console.log(usersArray)
-					Promise.all(usersArray.map(userObj => getUserInfo(userObj))).then(userInfoObjArray => {
-						console.log('Finished totally.');
-						res.end('Users in db: ' + Object.keys(USERS).length + JSON.stringify(USERS));
-					});
-				}).catch(err=> console.log('very bad error.'));
-		});
-	})
+					Promise.all(orgs.map(getUsersFromOrgName)).then( usersArray => {
+						console.log('Complete!\nScraping user data...');
+						usersArray = flatMap(usersArray);
+						var uniqueUsers = Object.keys(usersArray.reduce( (uniqueObj,item) => {
+							uniqueObj[item] = true;
+							return uniqueObj;
+						},{}));
+
+						Promise.all(uniqueUsers.map(userObj => getUserInfo(userObj))).then(userInfoObjArray => {
+							console.log('Complete!','\n***\n',Object.keys(USERS).length + ' users added.');
+							res.end('Scraping complete. ' + Object.keys(USERS).length + ' users added.' );
+						}).catch(err => console.log('Problem loading user data.'));
+					}).catch(err=> console.log('Problem loading organization data.'));
+			});
+		})
+	}
 });
 
 app.get('/orgs', (req,res) => {
-	var resp = "//"+Object.keys(ORGANIZATIONS).length + '\n'+ JSON.stringify(ORGANIZATIONS);
-	console.log('\n\n****************\n\n',resp);
+	var resp = "// Orgs: "+Object.keys(ORGANIZATIONS).length + '\n'+ JSON.stringify(ORGANIZATIONS);
+	console.log(resp);
 	res.end(resp);
 });
 
-app.get('/organization/:org', (req,res) => {
-	getUsersFromOrgName(req.params.org).then(resp=>{
-		res.end(JSON.stringify(resp));
-	});
+app.get('/users', (req,res) => {
+	var usersText = "// Users: "+Object.keys(USERS).length+"\n"+JSON.stringify(USERS);
+	console.log(usersText);
+	res.end(usersText);
 });
 
 app.post('/sessid', (req,res) => {
 	sessid = req.body.sessid;
-	res.end();
-});
-
-app.get('/user/:user', (req,res) => {
-	setupHeaders().then(x =>{
-		getUserInfo(req.params.user).then(resp=>{
-			res.end(JSON.stringify(resp));
-		});
-	});
-});
-
-app.get('/users', (req,res) => {
-	var usersText = ""+Object.keys(USERS).length+JSON.stringify(USERS);
-	console.log('**********\n\n' + usersText);
-	res.end(usersText);
-});
-
-app.get('/axios', (req,res) => {
-	res.end(JSON.stringify(axios.defaults.headers.common));
-});
-
-app.get('/sessid/:id', (req,res) => {
-	axios.defaults.headers.common['Cookie'] = axios.defaults.headers.common['Cookie'] + '; authsessid=' + req.params.id;
-	res.end('cookie set!');
+	res.end('<a href="/scrape">Start scraping...</a><small>browser will hang</small>');
 });
 
 app.listen(3000, () => {
