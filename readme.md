@@ -9,4 +9,5 @@
 
 ## Getting authssid Token from Google Chrome
 
+1. Open Developer Tools - Win/Linux: F12, macOS: Cmd+option+J
 ![dev_tools_screenshot](http://i.imgur.com/lcqRsZe.png)
