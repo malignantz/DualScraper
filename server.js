@@ -16,6 +16,13 @@ var sessid;
 
 // helper fns
 
+function orgNameToURL(name) {
+	if(name.split(' ').length > 1){
+		name = urlizeName(name);
+	}
+	return 'https://community.dualthegame.com/organization/' + name;
+}
+
 function addOrgToUser(user,org,joinDate,status) {
 	if(USERS[user] === undefined){
 		USERS[user] = { user: user, organizations: { } };
@@ -74,6 +81,8 @@ function setupHeaders() {
 		var cookieHeader = `cookieconsent_dismissed=yes; csrftoken=${csrfToken};`;
 		if(sessid !== undefined){
 			cookieHeader += 'authsessid=' + sessid + ';';
+		} else {
+			console.log('No authsessid. Functionality limited to organization related data only.');
 		}
 
 		axios.defaults.headers.common['Cookie'] = cookieHeader;
@@ -164,11 +173,30 @@ function getUserInfo(name){
 		}
 
 		// get join date
-		let joinDate = $(`small:contains('Joined:')`).text().slice('Joined:'.length);
+		let createdDate = $(`small:contains('Joined:')`).text().slice('Joined:'.length);
 
-		addCreateDateMembershipsAndPledgeStatus(name, joinDate, pledgeStatus);
+		// only used for individual userInfo requests - /user/:username
 
-		return { name, joinDate, pledgeStatus };
+		// get organizations and membership
+		let organizations = $('div.col-md-8 ul > li > a').map((i,el) => {
+			return $(el).text();
+		}).get();
+
+		let fullClanNames = $('div.col-md-8 ul > li').map( (i,el) => {
+			return $(el).text();
+		}).get();
+
+		let memberships = fullClanNames.map( clanName => {
+			if(clanName.includes('(')){
+				return clanName.slice(clanName.indexOf('(')+1,clanName.indexOf(')'));
+			} else {
+				return 'member';
+			}
+		});
+
+		addCreateDateMembershipsAndPledgeStatus(name, createdDate, pledgeStatus);
+
+		return { name, createdDate, pledgeStatus, organizations };
 	}).catch(err => console.log('Problem getting user info.'));
 }
 
@@ -242,6 +270,55 @@ app.post('/sessid', (req,res) => {
 	sessid = req.body.sessid;
 	res.end('<a href="/scrape">Start scraping...</a><small>browser will hang</small>');
 });
+
+app.get('/user/:user',(req,res) => {
+
+	var userInDb = USERS[req.params.user];
+	res.write('<html>');
+	var displayUser = (user) => {
+		for(var key in user) {
+			if(key === 'organizations') {
+				var orgArray = user[key];
+				var liLinks = orgArray.reduce( (total, name) => {
+					return `${total}<li><a href="${orgNameToURL(name)}">${name}</a></li>`;
+				},'');
+				res.write(`<ul>${liLinks}</ul>`);
+			} else {
+				res.write(key + ': ' + user[key] + '<br />');
+			}
+		}
+	};
+
+	if(userInDb===undefined || userInDb.organizations === undefined ){
+		console.log('Sending getUserInfo request...');
+		setupHeaders().then(x=>{
+			getUserInfo(req.params.user).then(userObj => {
+				console.log('Complete!')
+				displayUser(userObj);
+				res.end('</html>');
+			});
+		});
+	} else {
+		displayUser(USERS[req.params.user]);
+		res.end('</html>');
+	}
+});
+
+app.get('/api/user/:user',(req,res) => {
+	var userInDb = USERS[req.params.user];
+	if(userInDb===undefined || userInDb.organizations === undefined ){
+		console.log('Sending getUserInfo request...');
+		setupHeaders().then(x=>{
+			getUserInfo(req.params.user).then(userObj => {
+				console.log('Complete!')
+				res.end(JSON.stringify(userObj));
+			});
+		})
+	} else {
+	res.end(userInDb);
+}
+});
+
 
 app.listen(3000, () => {
 	console.log('Listening on port 3000...');
