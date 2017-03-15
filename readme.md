@@ -12,3 +12,6 @@
 1. Open Developer Tools - Win/Linux: F12, macOS: Cmd+option+J
 1. Copy authssid token value and paste into textbox at /
 ![dev_tools_screenshot](http://i.imgur.com/lcqRsZe.png)
+
+# Creating JSON file from data
+`node server.js | tee -a data.json` will copy stdout data to `data.json`
