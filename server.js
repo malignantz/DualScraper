@@ -184,7 +184,7 @@ function getUserInfo(name){
 app.get('/', (req,res) => {
 	setupHeaders();
 	if(axios.defaults.headers.common['Cookie'] && axios.defaults.headers.common['Cookie'].includes && axios.defaults.headers.common['Cookie'].includes('authsessid')){
-		res.end('cookie already set.<a href="/scrape">Start scraping...</a>');
+		res.end(`<html>cookie already set.<button onclick="document.location.href='/scrape';">Start scraping...</button></html>`);
 	} else {
 		res.end('<html>Input authssid token. Browser will hang while scraping. <form action="/sessid" method="post"><input type="text" name="sessid" placeholder="Sessid cookie"/><button type="submit">Submit</button></form></html>');
 	}

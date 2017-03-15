@@ -10,14 +10,16 @@
     "cookie-parser": "^1.4.3",
     "express": "^4.15.2",
     "http": "0.0.0",
-    "nodemon": "^1.11.0",
     "path": "^0.12.7",
     "request": "^2.81.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "nodemon": "^1.11.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "author": "Garrettt Holmes",
   "license": "ISC"
