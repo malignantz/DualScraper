@@ -13,12 +13,13 @@ app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x
 const USERS = {};
 const ORGANIZATIONS = {};
 var totalUsers;
+var sessid;
 
 // helper fns
 
 function addOrgToUser(user,org,joinDate,status) {
 	if(USERS[user] === undefined){
-		USERS[user] = { user: user, organizations: {} };
+		USERS[user] = { user: user, organizations: { } };
 	}
 	USERS[user].organizations[org] = {joinDate, status};
 }
@@ -28,8 +29,21 @@ function addOrgWithDateAndMembers(org,date,membersArray){
 		ORGANIZATIONS[org] = { date, members: {} };
 	}
 	membersArray.forEach(member => {
-		ORGANIZATIONS[org].members[member.name] = { joinDate: member.joinDate, status: member.status };
+		ORGANIZATIONS[org].members[member.name] = { joinDate: member.joinDate, status: member.status, createdDate: member.createdDate };
 	});
+}
+
+function addCreateDateMembershipsAndPledgeStatus(username,createdDate, memberships, pledgeStatus) {
+	//console.log(args);
+
+
+	if(USERS[username]===undefined){
+		USERS[username] = {};
+		console.log('User should already exist.',USERS);
+	}
+		USERS[username].createdDate = createdDate;
+		//USERS[username].memberships = memberships;
+		USERS[username].pledgeStatus = pledgeStatus;
 }
 
 const BASE_URL = 'https://community.dualthegame.com';
@@ -57,11 +71,16 @@ function dataStringFnGenerator() {
 function setupHeaders() {
 	return axios.get('https://community.dualthegame.com/organizations').then(resp => {
 		var setCookie = String(resp.headers['set-cookie']);
+
 		var startIndex = setCookie.indexOf('=')+1;
 		var endIndex = setCookie.indexOf(';');
 		var csrfToken = setCookie.slice(startIndex,endIndex);
+		//csrfToken = 'voJiPFqDfsWoEdPPHi9hpnXj5Kao0HmB';
+		//console.log('csrf token: ',csrfToken);
 		var cookieHeader = `cookieconsent_dismissed=yes; csrftoken=${csrfToken};`;
-
+		if(sessid !== undefined){
+			cookieHeader += 'authsessid=' + sessid + ';';
+		}
 
 		axios.defaults.headers.common['Cookie'] = cookieHeader;
 		axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
@@ -83,13 +102,13 @@ function buildOrgList(res){
 			while(count < 1400 && (totalUsers === undefined || count < totalUsers)) {
 				let c = count;
 				promArray.push(getPartialOrgList(res,dataStringBuilder(c)));
-
 				count+=10;
 			}
 			return Promise.all(promArray);
 }
 
 function getPartialOrgList(res,data) {
+	//console.log('Data: ',data);
 	return axios.post('https://community.dualthegame.com/organizations/list_ajax', data ).then(resp => {
 		totalUsers = resp.data.recordsTotal;
 		var orgs = resp.data.data.map(org => {
@@ -114,50 +133,54 @@ function getUsersFromOrgName(name){
 		var statuses = $('#all_members').find('tr > td + td').map( (i,el) => {
 			return $(el).text();
 		}).get().map(x=>x.trim()).filter( val => val.includes('Member') || val.includes('Legate'));
+		var uniqueUsers = {};
 		var usersArray = $('#all_members td > a').map( (index,el) => {
 				var href = el.attribs.href;
 				var username = href.slice(href.lastIndexOf('/')+1);
+				uniqueUsers[username] = true;
 				addOrgToUser(username,name,joinDates[index],statuses[index]);
 				return { name: username, organization: name, joinDate: joinDates[index], status: statuses[index] };
 		}).get();
 
 		// get organization created date
 		// update "organizations" db
-		var created = $('div.text-center > p > small').text();
-		var ind = created.indexOf('d:')+2;
+		let created = $('div.text-center > p > small').text();
+		let ind = created.indexOf('d:')+2;
 		created = created.slice(ind,ind+11);
 		addOrgWithDateAndMembers(name,created,usersArray);
 
-		return usersArray;
+		return Object.keys(uniqueUsers);
 	}).catch(err => console.log('URL FAIL: ',URL,'\n',err.response.statusText));
 }
 
 function getUserInfo(name){
+	//console.log('Name: ',name);
+	//console.log('157|Name: ',name);
 	return axios.get('https://community.dualthegame.com/accounts/profile/' + name).then(resp => {
 		let $ = cheerio.load(resp.data);
+		//console.log(resp.data);
 		//let user = { name: name, pledgeStatus: null };
 		// get pledgeStatus
-		var pledgeStatus = null;
+		let pledgeStatus = 'none';
 		if($('div.pledge_badge_anchor').length > 0) {
 			var src = $('div.pledge_badge_anchor > img.pledge_badge').get(0).attribs.src;
 			src = src.slice(src.lastIndexOf('/')+1,src.lastIndexOf('.'));
-			//res.end(src);
 			pledgeStatus = src;
 		}
 
 		// get join date
-		var joinDate = $(`small:contains('Joined:')`).text().slice('Joined:'.length);
+		let joinDate = $(`small:contains('Joined:')`).text().slice('Joined:'.length);
 
 		// get clans and membership
-		var clans = $('div.col-md-8 ul > li > a').map((i,el) => {
+		let clans = $('div.col-md-8 ul > li > a').map((i,el) => {
 			return $(el).text();
 		}).get();
 
-		var fullClanNames = $('div.col-md-8 ul > li').map( (i,el) => {
+		let fullClanNames = $('div.col-md-8 ul > li').map( (i,el) => {
 			return $(el).text();
 		}).get();
 
-		var memberships = fullClanNames.map( clanName => {
+		let memberships = fullClanNames.map( clanName => {
 
 			if(clanName.includes('(')){
 				return clanName.slice(clanName.indexOf('(')+1,clanName.indexOf(')'));
@@ -165,9 +188,10 @@ function getUserInfo(name){
 				return 'member';
 			}
 		});
+		addCreateDateMembershipsAndPledgeStatus(name, joinDate, memberships, pledgeStatus);
 
 		return { name, joinDate, pledgeStatus, memberships, clans };
-	});
+	}).catch(err => console.log('There was an error.'));
 }
 
 // ======================================
@@ -180,6 +204,7 @@ function getUserInfo(name){
 // /orgs & /users work only after /scrape
 
 app.get('/', (req,res) => {
+	setupHeaders();
 	if(axios.defaults.headers.common['Cookie'] && axios.defaults.headers.common['Cookie'].includes && axios.defaults.headers.common['Cookie'].includes('authsessid')){
 		res.end('cookie already set.');
 	} else {
@@ -195,12 +220,20 @@ app.get('/stats', (req,res) => {
 });
 
 app.get('/scrape', (req,res) => {
-	setupHeaders().then(x => {
-		return buildOrgList(res).then(orgs => {
+	setupHeaders(res).then(x => {
+		buildOrgList(res).then(orgs => {
+				//console.log(orgs);
 				orgs = flatMap(orgs);
-				Promise.all(orgs.map(getUsersFromOrgName)).then( orgNames => {
-					res.end('Users in db: ' + Object.keys(USERS).length + JSON.stringify(USERS));
-				});
+
+				Promise.all(orgs.map(getUsersFromOrgName)).then( usersArray => {
+					console.log('Finished getting users. Starting arduous user search...');
+					usersArray = flatMap(usersArray);
+					//console.log(usersArray)
+					Promise.all(usersArray.map(userObj => getUserInfo(userObj))).then(userInfoObjArray => {
+						console.log('Finished totally.');
+						res.end('Users in db: ' + Object.keys(USERS).length + JSON.stringify(USERS));
+					});
+				}).catch(err=> console.log('very bad error.'));
 		});
 	})
 });
@@ -211,26 +244,28 @@ app.get('/orgs', (req,res) => {
 	res.end(resp);
 });
 
-app.get('/users/:org', (req,res) => {
+app.get('/organization/:org', (req,res) => {
 	getUsersFromOrgName(req.params.org).then(resp=>{
 		res.end(JSON.stringify(resp));
 	});
 });
 
 app.post('/sessid', (req,res) => {
-	axios.defaults.headers.common['Cookie'] = axios.defaults.headers.common['Cookie'] + '; authsessid=' + req.body.sessid;
+	sessid = req.body.sessid;
 	res.end();
 });
 
 app.get('/user/:user', (req,res) => {
-	getUserInfo(req.params.user).then(resp=>{
-		res.end(JSON.stringify(resp));
+	setupHeaders().then(x =>{
+		getUserInfo(req.params.user).then(resp=>{
+			res.end(JSON.stringify(resp));
+		});
 	});
 });
 
 app.get('/users', (req,res) => {
 	var usersText = ""+Object.keys(USERS).length+JSON.stringify(USERS);
-	console.log('**********\n\n' + usersText)
+	console.log('**********\n\n' + usersText);
 	res.end(usersText);
 });
 
