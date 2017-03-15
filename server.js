@@ -56,8 +56,13 @@ function dataStringFnGenerator() {
 
 function setupHeaders() {
 	return axios.get('https://community.dualthegame.com/organizations').then(resp => {
-		var csrfToken = "D1DpcQo4zpKT29BRpr3d6PCjhJIhw8fu";
-		var cookieHeader = `authsessid=0dpmxl0p0y61r5pu8ea5swv0vl97vi6k; cookieconsent_dismissed=yes; csrftoken=D1DpcQo4zpKT29BRpr3d6PCjhJIhw8fu;`;
+		var setCookie = String(resp.headers['set-cookie']);
+		var startIndex = setCookie.indexOf('=')+1;
+		var endIndex = setCookie.indexOf(';');
+		var csrfToken = setCookie.slice(startIndex,endIndex);
+		var cookieHeader = `cookieconsent_dismissed=yes; csrftoken=${csrfToken};`;
+
+
 		axios.defaults.headers.common['Cookie'] = cookieHeader;
 		axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
 		axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -73,7 +78,9 @@ function buildOrgList(res){
 		var promArray = [];
 
 			let count = 0;
-			while(count < 1353 && (totalUsers === undefined || count < totalUsers)) {
+
+			// this is very hacky. shouldn't matter if 1400 is bigger than total users....
+			while(count < 1400 && (totalUsers === undefined || count < totalUsers)) {
 				let c = count;
 				promArray.push(getPartialOrgList(res,dataStringBuilder(c)));
 
