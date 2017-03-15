@@ -19,7 +19,6 @@
 `node server.js | tee -a data.json` will copy stdout data to `data.json`
 
 
-#### Please star/watch repo if you like Dual Scraper!
-<img src="http://i.imgur.com/wWTknRB.png" height="50" />
-![BTC_QR_CODE](http://i.imgur.com/wWTknRB.png)
+#### Please star/watch repo or donate if you like Dual Scraper!
+<img src="http://i.imgur.com/wWTknRB.png" height="70" />  
 1DJK3yVNNpqCyA5vssUwWKp4HEEWarY2m5
