@@ -21,4 +21,4 @@
 
 #### Please star/watch repo or donate if you like Dual Scraper!
 <img src="http://i.imgur.com/wWTknRB.png" height="70" />  
-1DJK3yVNNpqCyA5vssUwWKp4HEEWarY2m5
+BTC: 1DJK3yVNNpqCyA5vssUwWKp4HEEWarY2m5
