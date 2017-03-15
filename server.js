@@ -277,7 +277,7 @@ app.get('/user/:user',(req,res) => {
 	res.write('<html>');
 	var displayUser = (user) => {
 		for(var key in user) {
-			if(key === 'organizations') {
+			if(key === 'organizations' && Array.isArray(user[key])) {
 				var orgArray = user[key];
 				var liLinks = orgArray.reduce( (total, name) => {
 					return `${total}<li><a href="${orgNameToURL(name)}">${name}</a></li>`;
