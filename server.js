@@ -281,8 +281,39 @@ app.get('/orgs', (req,res) => {
 	res.end(resp);
 });
 
+function getFormattedUsers() {
+    var betterUSERS = { users: [] };
+    Object.keys(USERS).forEach(function(key) {
+        var user = USERS[key];
+        
+        var newUser = {
+            user: user.user,
+            createdDate: user.createdDate,
+            pledgeStatus: user.pledgeStatus
+        };
+        var orgs = [];
+        if(user.organizations){
+            Object.keys(user.organizations).forEach(function(key) {
+                var org = {
+                    orgname: key,
+                    joinDate: user.organizations[key].joinDate,
+                    status: user.organizations[key].status
+                };
+                orgs.push(org);
+            });
+        }
+        
+        newUser.organizations = orgs;
+        betterUSERS.users.push(newUser);
+    });
+    
+    return betterUSERS;
+}
+
 app.get('/users', (req,res) => {
-	var usersText = "// Users: "+Object.keys(USERS).length+"\n"+JSON.stringify(USERS);
+	//var usersText = "// Users: "+Object.keys(USERS).length+"\n"+JSON.stringify(USERS);
+    var formattedUSERS = getFormattedUsers();
+	var usersText = "// Users: "+Object.keys(formattedUSERS.users).length+"\n"+JSON.stringify(formattedUSERS);
 	//console.log(usersText);
 	res.end(usersText);
 });
