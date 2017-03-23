@@ -4,6 +4,9 @@ var http = require('http');
 var request = require('request');
 var axios = require('axios');
 var cheerio = require('cheerio');
+var sleep = require('sleep');
+var fs = require('fs');
+var config = require('config');
 
 let app = express();
 app.use(bodyParser.json()); // for parsing application/json
@@ -12,8 +15,13 @@ app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x
 const USERS = {};
 const ORGANIZATIONS = {};
 var totalUsers;
-var sessid;
+var sessid = config.get('sessid')
 
+if (sessid.toString() === "REPLACEME") {
+	console.log("You have not configured your sessid yet!")
+	console.log("Quitting...")
+	process.exit()
+}
 // helper fns
 
 function orgNameToURL(name) {
@@ -21,6 +29,13 @@ function orgNameToURL(name) {
 		name = urlizeName(name);
 	}
 	return 'https://community.dualthegame.com/organization/' + name;
+}
+
+function writeLog(output) {
+	fs.appendFile('log.txt', output+'\n', function (err) {
+  		if (err) 
+  			return console.log(err);
+	});
 }
 
 function addOrgToUser(user,org,joinDate,status) {
@@ -53,6 +68,8 @@ function flatMap(arr){
 	return arr.reduce( (flatArr, item) => flatArr.concat(item),[]);
 }
 
+
+
 function urlizeName(name){
 	if(name === undefined){
 		console.error('Sad face');
@@ -82,7 +99,7 @@ function setupHeaders() {
 		if(sessid !== undefined){
 			cookieHeader += 'authsessid=' + sessid + ';';
 		} else {
-			console.log('No authsessid. Functionality limited to organization related data only.');
+			writeLog('No authsessid. Functionality limited to organization related data only.');
 		}
 
 		axios.defaults.headers.common['Cookie'] = cookieHeader;
@@ -92,7 +109,7 @@ function setupHeaders() {
 		axios.defaults.headers.common['Referer'] = 'https://community.dualthegame.com/organizations';
 		axios.defaults.headers.common['Origin'] = 'https://community.dualthegame.com';
 		return csrfToken;
-	}).catch(err => console.log('*****\n********\n'));
+	}).catch(err => writeLog('*****\n********\n'));
 }
 
 function buildOrgList(res){
@@ -106,6 +123,7 @@ function buildOrgList(res){
 				let c = count;
 				promArray.push(getPartialOrgList(res,dataStringBuilder(c)));
 				count+=10;
+				//sleep(5)
 			}
 			return Promise.all(promArray);
 }
@@ -120,7 +138,7 @@ function getPartialOrgList(res,data) {
 			return name;
 		});
 		return orgs;
-	}).catch((x) => {console.error(x); res.end('fail')});
+	}).catch((x) => {writeLog(x); res.end('fail')});
 }
 
 function getUsersFromOrgName(name){
@@ -153,12 +171,13 @@ function getUsersFromOrgName(name){
 		addOrgWithDateAndMembers(name,created,usersArray);
 
 		return Object.keys(uniqueUsers);
-	}).catch(err => console.log('URL FAIL: ',URL,'\n',err.response.statusText));
+	}).catch(err => writeLog('URL FAIL: ',URL,'\n',err.response.statusText));
 }
 
 function getUserInfo(name){
+	//sleep.msleep(100)
 	if(name === undefined){
-		console.log('getUserInfo fail. name undefined');
+		writeLog('getUserInfo fail. name undefined');
 		return;
 	}
 	return axios.get('https://community.dualthegame.com/accounts/profile/' + name).then(resp => {
@@ -197,7 +216,7 @@ function getUserInfo(name){
 		addCreateDateMembershipsAndPledgeStatus(name, createdDate, pledgeStatus);
 
 		return { name, createdDate, pledgeStatus, organizations };
-	}).catch(err => console.log('Problem getting user info.'));
+	}).catch(err => writeLog('Problem getting user info.'));
 }
 
 // ======================================
@@ -211,11 +230,13 @@ function getUserInfo(name){
 
 app.get('/', (req,res) => {
 	setupHeaders();
+	/*
 	if(axios.defaults.headers.common['Cookie'] && axios.defaults.headers.common['Cookie'].includes && axios.defaults.headers.common['Cookie'].includes('authsessid')){
 		res.end(`<html>cookie already set.<button onclick="document.location.href='/scrape';">Start scraping...</button></html>`);
 	} else {
 		res.end('<html>Input authssid token. Browser will hang while scraping. <form action="/sessid" method="post"><input type="text" name="sessid" placeholder="Sessid cookie"/><button type="submit">Submit</button></form></html>');
 	}
+	*/
 });
 
 app.get('/stats', (req,res) => {
@@ -229,15 +250,15 @@ app.get('/scrape', (req,res) => {
 	if(sessid===undefined){
 		res.redirect('/');
 	} else {
-		console.log('Getting CSRF token...');
+		writeLog('Getting CSRF token...');
 		setupHeaders().then(x => {
-			console.log('Complete!\nBuilding list of organizations...');
+			writeLog('Complete!\nBuilding list of organizations...');
 			buildOrgList(res).then(orgs => {
-					console.log('Complete!\nBuilding master user list...')
+					writeLog('Complete!\nBuilding master user list...')
 					orgs = flatMap(orgs);
 
 					Promise.all(orgs.map(getUsersFromOrgName)).then( usersArray => {
-						console.log('Complete!\nScraping user data...');
+						writeLog('Complete!\nScraping user data...');
 						usersArray = flatMap(usersArray);
 						var uniqueUsers = Object.keys(usersArray.reduce( (uniqueObj,item) => {
 							uniqueObj[item] = true;
@@ -245,10 +266,10 @@ app.get('/scrape', (req,res) => {
 						},{}));
 
 						Promise.all(uniqueUsers.map(userObj => getUserInfo(userObj))).then(userInfoObjArray => {
-							console.log('Complete!','\n***\n',Object.keys(USERS).length + ' users added.');
+							writeLog('Complete!','\n***\n',Object.keys(USERS).length + ' users added.');
 							res.end('Scraping complete. ' + Object.keys(USERS).length + ' users added.' );
-						}).catch(err => console.log('Problem loading user data.'));
-					}).catch(err=> console.log('Problem loading organization data.'));
+						}).catch(err => writeLog('Problem loading user data.'));
+					}).catch(err=> writeLog('Problem loading organization data.'));
 			});
 		})
 	}
@@ -256,19 +277,19 @@ app.get('/scrape', (req,res) => {
 
 app.get('/orgs', (req,res) => {
 	var resp = "// Orgs: "+Object.keys(ORGANIZATIONS).length + '\n'+ JSON.stringify(ORGANIZATIONS);
-	console.log(resp);
+	//console.log(resp);
 	res.end(resp);
 });
 
 app.get('/users', (req,res) => {
 	var usersText = "// Users: "+Object.keys(USERS).length+"\n"+JSON.stringify(USERS);
-	console.log(usersText);
+	//console.log(usersText);
 	res.end(usersText);
 });
 
 app.post('/sessid', (req,res) => {
-	sessid = req.body.sessid;
-	res.end('<a href="/scrape">Start scraping...</a><small>browser will hang</small>');
+	//sessid = req.body.sessid;
+	//res.end('<a href="/scrape">Start scraping...</a><small>browser will hang</small>');
 });
 
 app.get('/user/:user',(req,res) => {
@@ -293,7 +314,7 @@ app.get('/user/:user',(req,res) => {
 		console.log('Sending getUserInfo request...');
 		setupHeaders().then(x=>{
 			getUserInfo(req.params.user).then(userObj => {
-				console.log('Complete!')
+				writeLog('Complete!')
 				displayUser(userObj);
 				res.end('</html>');
 			});
@@ -307,7 +328,7 @@ app.get('/user/:user',(req,res) => {
 app.get('/api/user/:user',(req,res) => {
 	var userInDb = USERS[req.params.user];
 	if(userInDb===undefined || userInDb.organizations === undefined ){
-		console.log('Sending getUserInfo request...');
+		writeLog('Sending getUserInfo request...');
 		setupHeaders().then(x=>{
 			getUserInfo(req.params.user).then(userObj => {
 				console.log('Complete!')
@@ -321,5 +342,5 @@ app.get('/api/user/:user',(req,res) => {
 
 
 app.listen(3000, () => {
-	console.log('Listening on port 3000...');
+	writeLog('Listening on port 3000...');
 });
