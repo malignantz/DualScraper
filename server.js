@@ -275,10 +275,40 @@ app.get('/scrape', (req,res) => {
 	}
 });
 
+function getFormattedOrgs() {
+    var betterORGANIZATIONS = {orgs: []};
+    Object.keys(ORGANIZATIONS).forEach(function(key) {
+        var org = ORGANIZATIONS[key];
+        
+        var newOrg = {
+            name: key,
+            createdDate: org.date
+        };
+        var members = [];
+        if(org.members){
+            Object.keys(org.members).forEach(function(key) {
+                var member = {
+                    name: key,
+                    joinDate: org.members[key].joinDate,
+                    status: org.members[key].status
+                };
+                members.push(member);
+            });
+        }
+        
+        newOrg.members = members;
+        betterORGANIZATIONS.orgs.push(newOrg);
+    });
+    
+    return betterORGANIZATIONS;
+}
+
 app.get('/orgs', (req,res) => {
-	var resp = "// Orgs: "+Object.keys(ORGANIZATIONS).length + '\n'+ JSON.stringify(ORGANIZATIONS);
+	//var resp = "// Orgs: "+Object.keys(ORGANIZATIONS).length + '\n'+ JSON.stringify(ORGANIZATIONS);
 	//console.log(resp);
-	res.end(resp);
+    var formattedORGS = getFormattedOrgs();
+    var orgsText = "// Orgs: "+Object.keys(formattedORGS.orgs).length + '\n'+ JSON.stringify(formattedORGS);
+	res.end(orgsText);
 });
 
 function getFormattedUsers() {
