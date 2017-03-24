@@ -16,6 +16,7 @@ const USERS = {};
 const ORGANIZATIONS = {};
 var totalUsers;
 var sessid = config.get('sessid')
+var configured = false
 
 if (sessid.toString() === "REPLACEME") {
 	console.log("You have not configured your sessid yet!")
@@ -108,6 +109,7 @@ function setupHeaders() {
 		axios.defaults.headers.common['Host'] = 'community.dualthegame.com';
 		axios.defaults.headers.common['Referer'] = 'https://community.dualthegame.com/organizations';
 		axios.defaults.headers.common['Origin'] = 'https://community.dualthegame.com';
+		configured = true;
 		return csrfToken;
 	}).catch(err => writeLog('*****\n********\n'));
 }
@@ -247,7 +249,10 @@ app.get('/stats', (req,res) => {
 });
 
 app.get('/scrape', (req,res) => {
-	if(sessid===undefined){
+	if(!configured)
+		setupHeaders();
+
+	if(sessid==="REPLACEME" || sessid===undefined){
 		res.redirect('/');
 	} else {
 		writeLog('Getting CSRF token...');
@@ -273,6 +278,14 @@ app.get('/scrape', (req,res) => {
 			});
 		})
 	}
+
+	writeLog('Complete!');
+
+	if(config.get('headless') == "true"){
+			getFormattedOrgs();
+			getFormattedUsers();
+	}
+
 });
 
 function getFormattedOrgs() {
@@ -299,6 +312,12 @@ function getFormattedOrgs() {
         newOrg.members = members;
         betterORGANIZATIONS.orgs.push(newOrg);
     });
+
+    fs.writeFile("./orgs.json", JSON.stringify(betterORGANIZATIONS), function(err) {
+    	if(err) {
+        	return writeLog(err);
+    	}
+	});
     
     return betterORGANIZATIONS;
 }
@@ -306,13 +325,16 @@ function getFormattedOrgs() {
 app.get('/orgs', (req,res) => {
 	//var resp = "// Orgs: "+Object.keys(ORGANIZATIONS).length + '\n'+ JSON.stringify(ORGANIZATIONS);
 	//console.log(resp);
+	if(!configured)
+		setupHeaders();
     var formattedORGS = getFormattedOrgs();
     var orgsText = "// Orgs: "+Object.keys(formattedORGS.orgs).length + '\n'+ JSON.stringify(formattedORGS);
+
 	res.end(orgsText);
 });
 
 function getFormattedUsers() {
-    var betterUSERS = { users: [] };
+    var betterUSERS = {users: []};
     Object.keys(USERS).forEach(function(key) {
         var user = USERS[key];
         
@@ -336,24 +358,34 @@ function getFormattedUsers() {
         newUser.organizations = orgs;
         betterUSERS.users.push(newUser);
     });
+
+    fs.writeFile("./users.json", JSON.stringify(betterUSERS), function(err) {
+    	if(err) {
+        	return writeLog(err);
+    	}
+	});
     
     return betterUSERS;
 }
 
 app.get('/users', (req,res) => {
 	//var usersText = "// Users: "+Object.keys(USERS).length+"\n"+JSON.stringify(USERS);
+	if(!configured)
+		setupHeaders();
     var formattedUSERS = getFormattedUsers();
 	var usersText = "// Users: "+Object.keys(formattedUSERS.users).length+"\n"+JSON.stringify(formattedUSERS);
-	//console.log(usersText);
 	res.end(usersText);
 });
 
-app.post('/sessid', (req,res) => {
+//app.post('/sessid', (req,res) => {
 	//sessid = req.body.sessid;
 	//res.end('<a href="/scrape">Start scraping...</a><small>browser will hang</small>');
-});
+//});
 
 app.get('/user/:user',(req,res) => {
+
+	if(!configured)
+		setupHeaders();
 
 	var userInDb = USERS[req.params.user];
 	res.write('<html>');
@@ -387,6 +419,10 @@ app.get('/user/:user',(req,res) => {
 });
 
 app.get('/api/user/:user',(req,res) => {
+
+	if(!configured)
+		setupHeaders();
+
 	var userInDb = USERS[req.params.user];
 	if(userInDb===undefined || userInDb.organizations === undefined ){
 		writeLog('Sending getUserInfo request...');
@@ -403,5 +439,7 @@ app.get('/api/user/:user',(req,res) => {
 
 
 app.listen(3000, () => {
+	if(!configured)
+		setupHeaders();
 	writeLog('Listening on port 3000...');
 });

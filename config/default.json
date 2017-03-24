@@ -1,4 +1,5 @@
 {
   // Customer module configs 
-  "sessid": "REPLACEME"
+  "sessid": "REPLACEME",
+  "headless": "true"
 }
