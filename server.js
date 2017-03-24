@@ -289,7 +289,7 @@ app.get('/scrape', (req,res) => {
 });
 
 function getFormattedOrgs() {
-    var betterORGANIZATIONS = {orgs: []};
+    var betterORGANIZATIONS = [];
     Object.keys(ORGANIZATIONS).forEach(function(key) {
         var org = ORGANIZATIONS[key];
         
@@ -310,7 +310,7 @@ function getFormattedOrgs() {
         }
         
         newOrg.members = members;
-        betterORGANIZATIONS.orgs.push(newOrg);
+        betterORGANIZATIONS.push(newOrg);
     });
 
     fs.writeFile("./orgs.json", JSON.stringify(betterORGANIZATIONS), function(err) {
@@ -328,13 +328,13 @@ app.get('/orgs', (req,res) => {
 	if(!configured)
 		setupHeaders();
     var formattedORGS = getFormattedOrgs();
-    var orgsText = "// Orgs: "+Object.keys(formattedORGS.orgs).length + '\n'+ JSON.stringify(formattedORGS);
+    var orgsText = "// Orgs: "+Object.keys(formattedORGS).length + '\n'+ JSON.stringify(formattedORGS);
 
 	res.end(orgsText);
 });
 
 function getFormattedUsers() {
-    var betterUSERS = {users: []};
+    var betterUSERS = [];
     Object.keys(USERS).forEach(function(key) {
         var user = USERS[key];
         
@@ -356,7 +356,7 @@ function getFormattedUsers() {
         }
         
         newUser.organizations = orgs;
-        betterUSERS.users.push(newUser);
+        betterUSERS.push(newUser);
     });
 
     fs.writeFile("./users.json", JSON.stringify(betterUSERS), function(err) {
@@ -373,7 +373,7 @@ app.get('/users', (req,res) => {
 	if(!configured)
 		setupHeaders();
     var formattedUSERS = getFormattedUsers();
-	var usersText = "// Users: "+Object.keys(formattedUSERS.users).length+"\n"+JSON.stringify(formattedUSERS);
+	var usersText = "// Users: "+Object.keys(formattedUSERS).length+"\n"+JSON.stringify(formattedUSERS);
 	res.end(usersText);
 });
 
